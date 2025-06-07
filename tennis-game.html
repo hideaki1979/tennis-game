@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テニスゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #2d5016;
+            font-family: Arial, sans-serif;
+        }
+        
+        .game-container {
+            text-align: center;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        #gameCanvas {
+            border: 3px solid #fff;
+            background-color: #4d8b31;
+            display: block;
+            margin: 10px auto;
+        }
+        
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #2d5016;
+        }
+        
+        .instructions {
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .game-over {
+            font-size: 32px;
+            color: #d32f2f;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        button {
+            font-size: 16px;
+            padding: 10px 20px;
+            background-color: #2d5016;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        
+        button:hover {
+            background-color: #1a3009;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>テニスゲーム</h1>
+        <div class="score">
+            <span>プレイヤー: <span id="playerScore">0</span></span>
+            <span style="margin: 0 20px;">|</span>
+            <span>コンピューター: <span id="computerScore">0</span></span>
+        </div>
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div class="game-over" id="gameOver">ゲーム終了!</div>
+        <button id="restartBtn" onclick="restartGame()">リスタート</button>
+        <div class="instructions">
+            <p>操作方法: W/S キーまたは ↑/↓ キーでパドルを移動</p>
+            <p>目標: 7点先取で勝利!</p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const playerScoreElement = document.getElementById('playerScore');
+        const computerScoreElement = document.getElementById('computerScore');
+        const gameOverElement = document.getElementById('gameOver');
+
+        let gameRunning = true;
+        let playerScore = 0;
+        let computerScore = 0;
+
+        const paddle = {
+            width: 10,
+            height: 80,
+            player: {
+                x: 10,
+                y: canvas.height / 2 - 40,
+                speed: 6
+            },
+            computer: {
+                x: canvas.width - 20,
+                y: canvas.height / 2 - 40,
+                speed: 4
+            }
+        };
+
+        const ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 8,
+            speedX: 5,
+            speedY: 3,
+            maxSpeed: 12
+        };
+
+        const keys = {
+            up: false,
+            down: false
+        };
+
+        function drawRect(x, y, width, height, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+        }
+
+        function drawCircle(x, y, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawDashedLine() {
+            ctx.setLineDash([5, 15]);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function updatePaddles() {
+            if (keys.up && paddle.player.y > 0) {
+                paddle.player.y -= paddle.player.speed;
+            }
+            if (keys.down && paddle.player.y < canvas.height - paddle.height) {
+                paddle.player.y += paddle.player.speed;
+            }
+
+            const ballCenterY = ball.y;
+            const computerPaddleCenterY = paddle.computer.y + paddle.height / 2;
+            
+            if (ballCenterY < computerPaddleCenterY - 5 && paddle.computer.y > 0) {
+                paddle.computer.y -= paddle.computer.speed;
+            } else if (ballCenterY > computerPaddleCenterY + 5 && paddle.computer.y < canvas.height - paddle.height) {
+                paddle.computer.y += paddle.computer.speed;
+            }
+        }
+
+        function updateBall() {
+            ball.x += ball.speedX;
+            ball.y += ball.speedY;
+
+            if (ball.y <= ball.radius || ball.y >= canvas.height - ball.radius) {
+                ball.speedY = -ball.speedY;
+            }
+
+            if (ball.x <= paddle.player.x + paddle.width &&
+                ball.y >= paddle.player.y &&
+                ball.y <= paddle.player.y + paddle.height &&
+                ball.speedX < 0) {
+                
+                const relativeIntersectY = (paddle.player.y + (paddle.height / 2)) - ball.y;
+                const normalizedRelativeIntersectionY = (relativeIntersectY / (paddle.height / 2));
+                const bounceAngle = normalizedRelativeIntersectionY * Math.PI / 4;
+                
+                const speed = Math.min(Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY) + 0.5, ball.maxSpeed);
+                ball.speedX = speed * Math.cos(bounceAngle);
+                ball.speedY = speed * -Math.sin(bounceAngle);
+            }
+
+            if (ball.x >= paddle.computer.x - ball.radius &&
+                ball.y >= paddle.computer.y &&
+                ball.y <= paddle.computer.y + paddle.height &&
+                ball.speedX > 0) {
+                
+                const relativeIntersectY = (paddle.computer.y + (paddle.height / 2)) - ball.y;
+                const normalizedRelativeIntersectionY = (relativeIntersectY / (paddle.height / 2));
+                const bounceAngle = normalizedRelativeIntersectionY * Math.PI / 4;
+                
+                const speed = Math.min(Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY) + 0.5, ball.maxSpeed);
+                ball.speedX = -speed * Math.cos(bounceAngle);
+                ball.speedY = speed * -Math.sin(bounceAngle);
+            }
+
+            if (ball.x < 0) {
+                computerScore++;
+                computerScoreElement.textContent = computerScore;
+                resetBall();
+                checkGameEnd();
+            } else if (ball.x > canvas.width) {
+                playerScore++;
+                playerScoreElement.textContent = playerScore;
+                resetBall();
+                checkGameEnd();
+            }
+        }
+
+        function resetBall() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.speedX = (Math.random() > 0.5 ? 1 : -1) * 5;
+            ball.speedY = (Math.random() - 0.5) * 6;
+        }
+
+        function checkGameEnd() {
+            if (playerScore >= 7 || computerScore >= 7) {
+                gameRunning = false;
+                gameOverElement.style.display = 'block';
+                if (playerScore >= 7) {
+                    gameOverElement.textContent = 'あなたの勝利!';
+                    gameOverElement.style.color = '#4caf50';
+                } else {
+                    gameOverElement.textContent = 'コンピューターの勝利!';
+                    gameOverElement.style.color = '#d32f2f';
+                }
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawDashedLine();
+            
+            drawRect(paddle.player.x, paddle.player.y, paddle.width, paddle.height, '#fff');
+            drawRect(paddle.computer.x, paddle.computer.y, paddle.width, paddle.height, '#fff');
+            
+            drawCircle(ball.x, ball.y, ball.radius, '#fff');
+        }
+
+        function gameLoop() {
+            if (gameRunning) {
+                updatePaddles();
+                updateBall();
+            }
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function restartGame() {
+            gameRunning = true;
+            playerScore = 0;
+            computerScore = 0;
+            playerScoreElement.textContent = '0';
+            computerScoreElement.textContent = '0';
+            gameOverElement.style.display = 'none';
+            
+            paddle.player.y = canvas.height / 2 - 40;
+            paddle.computer.y = canvas.height / 2 - 40;
+            resetBall();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    keys.up = true;
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    keys.down = true;
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    keys.up = false;
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    keys.down = false;
+                    break;
+            }
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
